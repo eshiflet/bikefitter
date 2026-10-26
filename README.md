@@ -1,2 +1,3 @@
 # bikefitter
-HomeBikeFitter, published build (encrypted, login required) at www.ericshiflet.com/bikefitter
+
+The published, encrypted build of HomeBikeFitter, served at https://www.ericshiflet.com/bikefitter/. Source is private.

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>HomeBikeFitter</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #0f1115;
+        color: #e6e8ec;
+      }
+      #login {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      #login[hidden] {
+        display: none;
+      }
+      #login form {
+        width: 100%;
+        max-width: 320px;
+        background: #171a21;
+        border: 1px solid #2a2f3a;
+        border-radius: 10px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      #login h1 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      #login label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 14px;
+      }
+      #login label.row {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        color: #9aa1ad;
+      }
+      #login input[type='text'],
+      #login input[type='password'] {
+        background: #0f1115;
+        color: #e6e8ec;
+        border: 1px solid #2a2f3a;
+        border-radius: 6px;
+        padding: 8px;
+        font: inherit;
+      }
+      #login button {
+        background: #22d3ee;
+        color: #001014;
+        border: none;
+        border-radius: 6px;
+        padding: 9px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #login button:disabled {
+        opacity: 0.6;
+      }
+      #login .msg {
+        min-height: 1.2em;
+        font-size: 13px;
+        color: #f59e0b;
+      }
+      #login .muted {
+        font-size: 12px;
+        color: #9aa1ad;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login" hidden>
+      <form autocomplete="on">
+        <h1>HomeBikeFitter</h1>
+        <label>User name <input type="text" name="username" autocomplete="username" required autofocus /></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" required /></label>
+        <label class="row"><input type="checkbox" name="remember" /> Keep me signed in on this computer</label>
+        <button type="submit">Sign in</button>
+        <div class="msg" role="status"></div>
+        <div class="muted">Your videos and measurements stay on your own computer.</div>
+      </form>
+    </div>
+    <div id="root"></div>
+    <script type="module">
+      // Filled in by scripts/deploy.mjs: one wrapped copy of the app key per user, and the
+      // encrypted app files. Nothing here reveals a password or the app's code.
+      const CONFIG = {"build":"d2a15d72c6971d3c","iterations":600000,"script":{"path":"/bikefitter/assets/app-d2a15d72c6971d3c.js.enc","iv":"j0hp8kjFDDpsu93Y"},"style":{"path":"/bikefitter/assets/app-d2a15d72c6971d3c.css.enc","iv":"2cylgJVH9wjthAPq"},"users":[{"id":"ef30983cec1f6bdada58c7ece6f3d747881c3e38f5736e0550dddb2cda6f5a49","salt":"xMfDBbN9eFn8G0CXN8s/zg==","iv":"SCl6IXvJPBQGnHRa","wrapped":"r89qSUsPRhwX3t49yZE3n/DinUzqSwnKBqO1ARk0p2j5FLVhYROicz0jk2wstpxy"},{"id":"2b11ace27b582a9286b38ab75557969731ed67f6475bcda626ca349464b30e44","salt":"4EVFcZ8FOYrBxCUw9f1Rmg==","iv":"dwgGWyGIT+CzYrG3","wrapped":"2RtjO1tzZcNGprkQTiurj070POsjPa5JETBsXU1XhQ9DR5ISlAadxDv+4NNV5Gov"},{"id":"e5ea2f2fadab39f1525eefdf71022e6412f2233a7506c7b30fbcf03194924bf7","salt":"HVDScSAW1aNzE2phhRbCzw==","iv":"x4PQ2hf7GMcVyGR1","wrapped":"TR91uROZ7nZFDVZFld0adpP46oRkilCV0qX8wpqH+AOxGqEK8ICHnc4S5PNmSAfI"}]};
+
+      if (location.protocol === 'http:' && !['localhost', '127.0.0.1'].includes(location.hostname)) {
+        location.replace('https://' + location.host + location.pathname + location.search);
+      }
+
+      const KEY_STORE = 'hbf:auth';
+      const subtle = crypto.subtle;
+      const enc = new TextEncoder();
+      const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+      const toB64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+      const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+      async function userId(name) {
+        return hex(await subtle.digest('SHA-256', enc.encode('hbf:' + name.trim().toLowerCase())));
+      }
+
+      async function unwrapKey(entry, password) {
+        const base = await subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+        const kek = await subtle.deriveKey(
+          { name: 'PBKDF2', hash: 'SHA-256', salt: b64(entry.salt), iterations: CONFIG.iterations },
+          base,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['decrypt'],
+        );
+        return new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv: b64(entry.iv) }, kek, b64(entry.wrapped)));
+      }
+
+      async function decryptFile(key, file) {
+        const res = await fetch(file.path, { cache: 'no-cache' });
+        if (!res.ok) throw new Error('Could not load ' + file.path);
+        return subtle.decrypt({ name: 'AES-GCM', iv: b64(file.iv) }, key, await res.arrayBuffer());
+      }
+
+      /** Decrypts and starts the app. Throws if the key is wrong (AES-GCM checks it). */
+      async function start(rawKey, user) {
+        const key = await subtle.importKey('raw', rawKey, 'AES-GCM', false, ['decrypt']);
+        const [js, css] = await Promise.all([decryptFile(key, CONFIG.script), decryptFile(key, CONFIG.style)]);
+        const style = document.createElement('style');
+        style.textContent = new TextDecoder().decode(css);
+        document.head.append(style);
+        window.hbfUser = user;
+        window.hbfSignOut = () => {
+          sessionStorage.removeItem(KEY_STORE);
+          localStorage.removeItem(KEY_STORE);
+          location.reload();
+        };
+        document.getElementById('login').hidden = true;
+        const url = URL.createObjectURL(new Blob([js], { type: 'text/javascript' }));
+        await import(url);
+      }
+
+      function stored() {
+        try {
+          const s = sessionStorage.getItem(KEY_STORE) ?? localStorage.getItem(KEY_STORE);
+          return s ? JSON.parse(s) : null;
+        } catch {
+          return null;
+        }
+      }
+
+      async function boot() {
+        const saved = stored();
+        if (saved && saved.build === CONFIG.build) {
+          try {
+            await start(b64(saved.key), saved.user);
+            return;
+          } catch {
+            // A new deploy or a changed password: sign in again.
+          }
+        }
+        sessionStorage.removeItem(KEY_STORE);
+        localStorage.removeItem(KEY_STORE);
+        showLogin();
+      }
+
+      function showLogin() {
+        const box = document.getElementById('login');
+        const form = box.querySelector('form');
+        const msg = box.querySelector('.msg');
+        const button = form.querySelector('button');
+        box.hidden = false;
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const data = new FormData(form);
+          const user = String(data.get('username') ?? '').trim();
+          button.disabled = true;
+          msg.textContent = 'Checking…';
+          try {
+            const id = await userId(user);
+            const found = CONFIG.users.find((u) => u.id === id);
+            if (!found) throw new Error('bad login');
+            const raw = await unwrapKey(found, String(data.get('password') ?? ''));
+            const record = JSON.stringify({ build: CONFIG.build, user, key: toB64(raw) });
+            (data.get('remember') ? localStorage : sessionStorage).setItem(KEY_STORE, record);
+            await start(raw, user);
+          } catch {
+            msg.textContent = 'Wrong user name or password.';
+            button.disabled = false;
+          }
+        });
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
